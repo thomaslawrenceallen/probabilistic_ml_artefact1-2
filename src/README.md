@@ -17,7 +17,7 @@ node in the group DAG-based probabilistic inference engine.
    `pip install -r requirements.txt`
 
 2. Navigate to the src directory:  
-   `cd src`
+   `cd Source`
 
 3. Run the pipeline:  
    `python artefact1.py`
