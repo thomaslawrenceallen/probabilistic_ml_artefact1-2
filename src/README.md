@@ -13,11 +13,14 @@ node in the group DAG-based probabilistic inference engine.
 
  --- 
 ### How to Run
-1. Install Dependencies  
-`pip install -r requirements.txt`
+1. Install dependencies:  
+   `pip install -r requirements.txt`
 
-2. Run Pipeline  
-`python artefact1.py`
+2. Navigate to the src directory:  
+   `cd src`
+
+3. Run the pipeline:  
+   `python artefact1.py`
 
  --- 
 ### Outputs
@@ -39,7 +42,7 @@ All outputs are saved to the `output/` directory.
 
  --- 
 ### Dependencies
-See requirements.txt for full list. Key Packages;
+See `requirements.txt` for full list. Key Packages;
 - yfinance
 - pymc
 - scipy
