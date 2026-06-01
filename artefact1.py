@@ -8,10 +8,7 @@
 
 # IMPORTS
 
-import os
 import warnings
-import pathlib
-import requests
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
@@ -24,18 +21,11 @@ import arviz as az
 warnings.filterwarnings("ignore")
 
 
-# =============================================================================
 # CONFIGURATION
-# =============================================================================
 
 START_DATE  = "2018-01-01"   # 7 years — captures pre-COVID, COVID, hike cycle
 END_DATE    = "2025-01-01"
 OUTPUT_PATH = "us_10yr_yield.csv"
-
-# Create output directories if they don't exist
-pathlib.Path("../data/raw").mkdir(parents=True, exist_ok=True)
-pathlib.Path("../data/estimates").mkdir(parents=True, exist_ok=True)
-
 
 
 # DATA INGESTION
@@ -51,6 +41,7 @@ def fetch_yfinance(start: str, end: str) -> pd.DataFrame:
     Returns:
         DataFrame with daily yield (Close) indexed by Date.
     """
+
     raw = yf.download("^TNX", start=start, end=end, auto_adjust=True, progress=False)
 
     if raw.empty:
@@ -66,55 +57,8 @@ def fetch_yfinance(start: str, end: str) -> pd.DataFrame:
     df.index.name = "Date"
     df.index = pd.to_datetime(df.index)
     print(f"yfinance: fetched {len(df)} trading days  |  "
-          f"range: {df.index[0].date()} → {df.index[-1].date()}")
+          f"range: {df.index[0].date()} -> {df.index[-1].date()}")
     return df
-
-
-def fetch_fred(start: str, end: str, api_key: str = None) -> pd.DataFrame:
-    """
-    Fetch DGS10 (US 10-Year Treasury yield) from FRED REST API.
-    Fallback if yfinance is unavailable.
-
-    Args:
-        start:   Start date string (YYYY-MM-DD).
-        end:     End date string (YYYY-MM-DD).
-        api_key: Optional FRED API key. Get one free at https://fred.stlouisfed.org
-
-    Returns:
-        DataFrame with daily yield indexed by Date, or empty DataFrame on failure.
-    """
-    key = api_key or os.environ.get("FRED_API_KEY", "")
-    url = "https://api.stlouisfed.org/fred/series/observations"
-    params = {
-        "series_id":         "DGS10",
-        "observation_start": start,
-        "observation_end":   end,
-        "file_type":         "json",
-    }
-    if key:
-        params["api_key"] = key
-
-    try:
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        print(f"FRED request failed: {e}")
-        return pd.DataFrame()
-
-    observations = resp.json().get("observations", [])
-    if not observations:
-        print("FRED returned no observations.")
-        return pd.DataFrame()
-
-    df = pd.DataFrame(observations)[["date", "value"]]
-    df["date"]  = pd.to_datetime(df["date"])
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-    df = df.rename(columns={"date": "Date", "value": "yield_pct"}).set_index("Date")
-    df = df.dropna()
-    print(f"FRED: fetched {len(df)} trading days  |  "
-          f"range: {df.index[0].date()} → {df.index[-1].date()}")
-    return df
-
 
 
 # DATA VALIDATION
@@ -127,16 +71,17 @@ def validate_data(yield_df: pd.DataFrame) -> None:
     Args:
         yield_df: DataFrame with yield_pct column indexed by Date.
     """
+
     print("=== Data Quality Report ===")
     print(f"Shape:          {yield_df.shape}")
-    print(f"Date range:     {yield_df.index.min().date()} → {yield_df.index.max().date()}")
+    print(f"Date range:     {yield_df.index.min().date()} -> {yield_df.index.max().date()}")
     print(f"Missing values: {yield_df['yield_pct'].isna().sum()}")
     print(f"Missing %:      {yield_df['yield_pct'].isna().mean()*100:.2f}%")
     print()
     print("=== Descriptive Statistics ===")
     print(yield_df["yield_pct"].describe().round(4))
 
-    # Sanity check — 10yr yield should be between 0% and 15% in modern era
+    # Sanity check 
     out_of_range = yield_df[
         (yield_df["yield_pct"] < 0) | (yield_df["yield_pct"] > 15)
     ]
@@ -147,9 +92,8 @@ def validate_data(yield_df: pd.DataFrame) -> None:
         print("\nRange check PASSED — all values within expected bounds (0–15%).")
 
 
-# =============================================================================
+
 # FEATURE ENGINEERING
-# =============================================================================
 
 def engineer_features(yield_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -185,7 +129,7 @@ def plot_eda(yield_df: pd.DataFrame, save_path: str = "../data/raw/yield_eda.png
     """
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
     fig.suptitle(
-        "US 10-Year Treasury Yield (^TNX / DGS10) — EDA",
+        "US 10-Year Treasury Yield (^TNX) — EDA",
         fontsize=13, fontweight="bold"
     )
 
@@ -226,7 +170,7 @@ def plot_eda(yield_df: pd.DataFrame, save_path: str = "../data/raw/yield_eda.png
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"EDA plot saved → {save_path}")
+    print(f"EDA plot saved -> {save_path}")
 
 
 
@@ -318,22 +262,18 @@ def plot_distribution(
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"Distribution plot saved → {save_path}")
+    print(f"Distribution plot saved -> {save_path}")
 
     # Key insight
     print("\n=== KEY INSIGHT FOR REPORT ===")
     if ks_p < 0.05 or sw_p < 0.05:
-        print(f"Normality REJECTED — excess kurtosis = {kurt:.2f}")
+        print(f"Normality REJECTED, excess kurtosis = {kurt:.2f}")
         print("Daily yield changes have heavier tails than a Normal distribution.")
-        print("This justifies using a Student-t likelihood in both MLE and Bayesian models,")
-        print("and demonstrates why a point estimate (MLE) understates tail risk.")
     else:
         print("Normality not rejected at α=0.05.")
 
 
-# =============================================================================
 # FREQUENTIST MLE
-# =============================================================================
 
 def fit_frequentist(changes: pd.Series) -> dict:
     """
@@ -405,10 +345,10 @@ def fit_bayesian(changes_np: np.ndarray, draws: int = 2000, tune: int = 1000) ->
         sigma = pm.HalfNormal("sigma", sigma=0.05)
         nu    = pm.Gamma("nu",    alpha=2,  beta=0.1)
 
-        # Student-t likelihood — appropriate given excess kurtosis > 0
+        # Student-t likelihood, appropriate given excess kurtosis > 0
         pm.StudentT("likelihood", mu=mu, sigma=sigma, nu=nu, observed=changes_np)
 
-        # NUTS sampler — target_accept=0.95 reduces divergences vs default 0.8
+        # NUTS sampler — target_accept=0.95 
         trace = pm.sample(
             draws=draws,
             tune=tune,
@@ -417,8 +357,6 @@ def fit_bayesian(changes_np: np.ndarray, draws: int = 2000, tune: int = 1000) ->
         )
 
     summary = az.summary(trace, var_names=["mu", "sigma", "nu"], round_to=4)
-    print("\nBayesian Inference Summary:")
-    print(summary)
 
     # Convergence check
     print("\n=== Convergence Diagnostics ===")
@@ -494,7 +432,7 @@ def plot_comparison(
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"Comparison plot saved → {save_path}")
+    print(f"Comparison plot saved -> {save_path}")
 
     # Credible intervals
     print("\n=== Bayesian 94% Credible Intervals ===")
@@ -532,7 +470,7 @@ def plot_comparison(
         f"[{np.percentile(sigma_samples,3):.6f}, {np.percentile(sigma_samples,97):.6f}]"
     )
     print(
-        f"{'nu (df)':<12} {df_t:>14.2f} "
+        f"{'nu':<12} {df_t:>14.2f} "
         f"{'N/A':>22} "
         f"{nu_samples.mean():>12.2f} "
         f"[{np.percentile(nu_samples,3):.2f}, {np.percentile(nu_samples,97):.2f}]"
@@ -542,9 +480,7 @@ def plot_comparison(
     return mu_samples, sigma_samples, nu_samples
 
 
-# =============================================================================
 # EXPORT — DATA CONTRACT
-# =============================================================================
 
 def export_data_contract(yield_df: pd.DataFrame, output_path: str) -> None:
     """
@@ -552,7 +488,7 @@ def export_data_contract(yield_df: pd.DataFrame, output_path: str) -> None:
 
     Output columns:
         yield_pct    — daily closing yield level (%)
-        daily_change — first difference of yield (bp-equivalent change)
+        daily_change — first difference of yield (percentage points)
         vol_21d      — 21-day rolling std of daily changes (uncertainty proxy)
 
     Args:
@@ -562,7 +498,7 @@ def export_data_contract(yield_df: pd.DataFrame, output_path: str) -> None:
     output = yield_df[["yield_pct", "daily_change", "vol_21d"]].copy()
     output = output.ffill()   # Forward-fill US holidays to align with ASX calendar
     output.to_csv(output_path)
-    print(f"Data contract saved → {output_path}  shape={output.shape}")
+    print(f"Data contract saved -> {output_path}  shape={output.shape}")
 
 
 # =============================================================================
@@ -570,18 +506,15 @@ def export_data_contract(yield_df: pd.DataFrame, output_path: str) -> None:
 # =============================================================================
 
 def main():
-    print(f"Date range: {START_DATE} → {END_DATE}")
+    print(f"Date range: {START_DATE} -> {END_DATE}")
     print("=" * 60)
 
     # 1. Ingest
     yield_df = fetch_yfinance(START_DATE, END_DATE)
     if yield_df.empty:
-        print("Falling back to FRED...")
-        yield_df = fetch_fred(START_DATE, END_DATE)
-    if yield_df.empty:
-        print("ERROR: Both data sources failed. Check internet connection.")
+        print("ERROR: No data ingested. Exiting pipeline.")
         return
-
+    
     # 2. Feature engineering
     yield_df = engineer_features(yield_df)
 
