@@ -21,6 +21,8 @@ node in the group DAG-based probabilistic inference engine.
 
  --- 
 ### Outputs
+All outputs are saved to the `output/` directory.
+
 | File | Description |
 |------|-------------|
 | yield_eda.png | Three-panel EDA plot |
