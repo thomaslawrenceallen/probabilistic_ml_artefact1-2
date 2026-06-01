@@ -9,6 +9,7 @@
 # IMPORTS
 
 import warnings
+import pathlib
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
@@ -21,11 +22,15 @@ import arviz as az
 warnings.filterwarnings("ignore")
 
 
+
 # CONFIGURATION
 
 START_DATE  = "2018-01-01"   # 7 years — captures pre-COVID, COVID, hike cycle
 END_DATE    = "2025-01-01"
-OUTPUT_PATH = "us_10yr_yield.csv"
+OUTPUT_PATH = "../output/us_10yr_yield.csv"
+
+# Create output directories
+pathlib.Path("../output").mkdir(parents=True, exist_ok=True)
 
 
 # DATA INGESTION
@@ -119,7 +124,7 @@ def engineer_features(yield_df: pd.DataFrame) -> pd.DataFrame:
 # EDA — PLOT 1: YIELD LEVEL, DAILY CHANGES, ROLLING VOLATILITY
 
 
-def plot_eda(yield_df: pd.DataFrame, save_path: str = "../data/raw/yield_eda.png") -> None:
+def plot_eda(yield_df: pd.DataFrame, save_path: str = "output/yield_eda.png") -> None:
     """
     Generate three-panel EDA plot: yield level, daily changes, rolling volatility.
 
@@ -184,7 +189,7 @@ def plot_distribution(
     df_t: float,
     loc_t: float,
     scale_t: float,
-    save_path: str = "../data/raw/yield_distribution.png",
+    save_path: str = "output/yield_distribution.png",
 ) -> None:
     """
     Generate distribution analysis plot: histogram with MLE fits, Q-Q plot,
@@ -375,7 +380,7 @@ def fit_bayesian(changes_np: np.ndarray, draws: int = 2000, tune: int = 1000) ->
 def plot_comparison(
     freq: dict,
     trace: object,
-    save_path: str = "freq_vs_bayes.png",
+    save_path: str = "output/freq_vs_bayes.png",
 ) -> tuple:
     """
     Plot posterior histograms for μ, σ, ν with MLE point estimates overlaid.
@@ -500,10 +505,7 @@ def export_data_contract(yield_df: pd.DataFrame, output_path: str) -> None:
     output.to_csv(output_path)
     print(f"Data contract saved -> {output_path}  shape={output.shape}")
 
-
-# =============================================================================
 # MAIN
-# =============================================================================
 
 def main():
     print(f"Date range: {START_DATE} -> {END_DATE}")
@@ -521,7 +523,7 @@ def main():
     # 3. Validation
     validate_data(yield_df)
     # 4. EDA plots
-    plot_eda(yield_df, save_path="yield_eda.png")
+    plot_eda(yield_df, save_path="../output/yield_eda.png")
 
     # 5. Frequentist MLE
     # Pandas Series — used for MLE fitting and plotting
@@ -533,7 +535,7 @@ def main():
         changes,
         freq["mu_mle"], freq["sigma_mle"],
         freq["df_t"], freq["loc_t"], freq["scale_t"],
-        save_path="yield_distribution.png",
+        save_path="../output/yield_distribution.png",
     )
 
     # 6. Bayesian MCMC
@@ -542,7 +544,7 @@ def main():
     trace      = fit_bayesian(changes_np)
 
     # 7. Comparison plot + summary table
-    plot_comparison(freq, trace, save_path="freq_vs_bayes.png")
+    plot_comparison(freq, trace, save_path="../output/freq_vs_bayes.png")
     # 8. Export data contract
     export_data_contract(yield_df, OUTPUT_PATH)
 
